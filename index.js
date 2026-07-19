@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, PermissionsBitField, REST, Routes, SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, WebhookClient } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, WebhookClient } = require('discord.js');
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./bot.db');
 
@@ -14,7 +14,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand() && !interaction.isModalSubmit() && !interaction.isButton()) return;
 
-    // 1. 명령어 모음
+    // 1. 가르치기 관련
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -23,7 +23,6 @@ client.on('interactionCreate', async interaction => {
         );
         return interaction.showModal(modal);
     }
-    
     if (interaction.isModalSubmit() && interaction.customId === 'teachModal') {
         const q = interaction.fields.getTextInputValue('q');
         const a = interaction.fields.getTextInputValue('a');
@@ -36,37 +35,32 @@ client.on('interactionCreate', async interaction => {
                     if (logChannel) logChannel.send(`[학습 로그] ${interaction.user.tag}님이 가르침!\n질문: ${q}\n대답: ${a}`);
                 }
             });
-            return interaction.reply(`학습 완료: "${q}" -> "${a}" (가르친 사람: ${interaction.user.username})`);
+            return interaction.reply(`학습 완료: "${q}" -> "${a}"`);
         });
     }
 
+    // 2. 관리 명령어들
     if (interaction.commandName === '가르치기로그') {
         db.run("INSERT OR REPLACE INTO settings (guildId, logChannelId) VALUES (?, ?)", [interaction.guild.id, interaction.options.getChannel('채널').id]);
         return interaction.reply('로그 채널 설정 완료!');
     }
-
     if (interaction.commandName === '티켓패널') {
         const btn = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('티켓 생성').setStyle(ButtonStyle.Primary));
         return interaction.reply({ content: '문의하기', components: [btn] });
     }
-    
     if (interaction.isButton() && interaction.customId === 'create_ticket') {
         const ch = await interaction.guild.channels.create({ name: `ticket-${interaction.user.username}` });
         return interaction.reply({ content: `생성됨: ${ch}`, ephemeral: true });
     }
-
     if (interaction.commandName === '경고') {
         db.run("INSERT INTO warnings VALUES (?, ?)", [interaction.options.getMember('유저').id, interaction.options.getString('사유')]);
         return interaction.reply('경고 완료.');
     }
-
     if (interaction.commandName === '핑') return interaction.reply(`${client.ws.ping}ms`);
-
     if (interaction.commandName === '블랙리스트') {
         db.run("INSERT INTO blacklist VALUES (?)", [interaction.options.getUser('유저').id]);
         return interaction.reply('블랙리스트 등록.');
     }
-
     if (interaction.commandName === '웹훅보내기') {
         const modal = new ModalBuilder().setCustomId('wModal').setTitle('웹훅').addComponents(
             new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('url').setLabel('URL').setStyle(TextInputStyle.Short).setRequired(true)),
@@ -79,19 +73,18 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '전송완료', ephemeral: true });
     }
 
+    // 3. 역할 및 채널 관리
     if (interaction.commandName === '역할지급') {
         await interaction.options.getMember('유저').roles.add(interaction.options.getRole('역할'));
-        return interaction.reply('지급 완료.');
+        return interaction.reply('역할 지급 완료.');
     }
-
     if (interaction.commandName === '채널생성') {
         const ch = await interaction.guild.channels.create({ name: interaction.options.getString('채널명'), parent: interaction.options.getChannel('카테고리').id });
-        return interaction.reply(`${ch} 생성 완료.`);
+        return interaction.reply(`${ch} 채널 생성 완료.`);
     }
-
     if (interaction.commandName === '역할생성') {
         const r = await interaction.guild.roles.create({ name: interaction.options.getString('역할이름') });
-        return interaction.reply(`${r.name} 생성 완료.`);
+        return interaction.reply(`${r.name} 역할 생성 완료.`);
     }
 });
 
@@ -102,18 +95,17 @@ client.on('messageCreate', async message => {
 
     if (message.content.startsWith('고강아 ') && member) {
         if (args[2] === '추방') {
-            if (!member.kickable) return message.reply('처벌유저가 저보다 권한이 높아요!');
+            if (!member.kickable) return message.reply('권한이 낮아!');
             await member.kick();
             return message.reply('추방 완료.');
         }
         if (args[2] === '차단') {
-            if (!member.bannable) return message.reply('처벌유저가 저보다 권한이 높아요!');
+            if (!member.bannable) return message.reply('권한이 낮아!');
             await member.ban();
             return message.reply('차단 완료.');
         }
     }
-
-    if (message.content === '고강아 안녕') return message.reply('안녕! 난 고강이라고해. 기본적으로 xAI사용하고 있어. 여러 명령어를 사용하여 놀아봐!');
+    if (message.content === '고강아 안녕') return message.reply('안녕! 난 고강이라고해. 기본적으로 xAI사용하고 있어.');
     if (message.content.startsWith('고강아 ')) {
         const query = message.content.replace('고강아 ', '').trim();
         db.get("SELECT a, teacher FROM knowledge WHERE q = ?", [query], (err, row) => {
@@ -136,7 +128,7 @@ client.once('ready', async () => {
         new SlashCommandBuilder().setName('역할생성').setDescription('역할생성').addStringOption(o=>o.setName('역할이름').setRequired(true))
     ].map(c => c.toJSON());
     await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('가동 시작!');
+    console.log('최종 통합 완료!');
 });
 
 client.login(process.env.DISCORD_TOKEN);
