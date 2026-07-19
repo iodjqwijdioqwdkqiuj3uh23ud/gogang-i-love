@@ -11,7 +11,7 @@ db.serialize(() => {
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
 
 client.on('interactionCreate', async interaction => {
-    // 1. 가르치기 (중복 방지 & 가르친 사람 저장)
+    // 1. 가르치기 (중복 확인 및 가르친 사람 저장)
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -95,9 +95,9 @@ client.once('ready', async () => {
     const commands = [
         new SlashCommandBuilder().setName('가르치기').setDescription('질문 학습'),
         new SlashCommandBuilder().setName('티켓패널').setDescription('티켓 생성'),
-        new SlashCommandBuilder().setName('경고').setDescription('경고').addUserOption(o=>o.setName('유저').setRequired(true)).addStringOption(o=>o.setName('사유').setRequired(true)),
+        new SlashCommandBuilder().setName('경고').setDescription('경고').addUserOption(o=>o.setName('유저').setDescription('유저선택').setRequired(true)).addStringOption(o=>o.setName('사유').setDescription('사유입력').setRequired(true)),
         new SlashCommandBuilder().setName('핑').setDescription('서버 핑 확인'),
-        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트 등록').addUserOption(o=>o.setName('유저').setRequired(true)),
+        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트 등록').addUserOption(o=>o.setName('유저').setDescription('유저선택').setRequired(true)),
         new SlashCommandBuilder().setName('웹훅보내기').setDescription('웹훅 전송')
     ].map(c => c.toJSON());
     await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user.id), { body: commands });
