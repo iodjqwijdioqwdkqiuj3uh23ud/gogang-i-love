@@ -11,7 +11,6 @@ db.serialize(() => {
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
 
 client.on('interactionCreate', async interaction => {
-    // 1. 가르치기 (중복 확인 및 가르친 사람 저장)
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -30,7 +29,6 @@ client.on('interactionCreate', async interaction => {
         });
     }
 
-    // 2. 티켓패널
     if (interaction.commandName === '티켓패널') {
         const embed = new EmbedBuilder().setTitle('문의하기').setDescription('아래 버튼을 눌러 티켓을 생성하세요.');
         const btn = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('티켓 생성').setStyle(ButtonStyle.Primary));
@@ -41,7 +39,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `티켓 생성됨: ${ch}`, ephemeral: true });
     }
 
-    // 3. 경고
     if (interaction.commandName === '경고') {
         const member = interaction.options.getMember('유저');
         const reason = interaction.options.getString('사유');
@@ -49,18 +46,15 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply(`${member.user.tag}님 경고: ${reason}`);
     }
 
-    // 4. 핑
     if (interaction.commandName === '핑') {
         return interaction.reply({ embeds: [new EmbedBuilder().setTitle('서버 상태').setDescription(`${client.ws.ping}ms`).setColor(0x00FF00)] });
     }
 
-    // 5. 블랙리스트
     if (interaction.commandName === '블랙리스트') {
         db.run("INSERT INTO blacklist VALUES (?)", [interaction.options.getUser('유저').id]);
         return interaction.reply('블랙리스트 등록 완료.');
     }
 
-    // 6. 웹훅보내기
     if (interaction.commandName === '웹훅보내기') {
         const modal = new ModalBuilder().setCustomId('wModal').setTitle('웹훅 전송').addComponents(
             new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('url').setLabel('웹훅 URL').setStyle(TextInputStyle.Short).setRequired(true)),
@@ -76,6 +70,23 @@ client.on('interactionCreate', async interaction => {
 
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
+    
+    // 추방 및 차단 기능
+    const args = message.content.split(' ');
+    if (args[0] === '고강아' && message.mentions.members.first()) {
+        const member = message.mentions.members.first();
+        if (args[2] === '추방') {
+            if (!member.kickable) return message.reply('처벌유저가 저보다 권한이 높아요!');
+            await member.kick();
+            return message.reply(`${member.user.tag}님을 추방했습니다.`);
+        }
+        if (args[2] === '차단') {
+            if (!member.bannable) return message.reply('처벌유저가 저보다 권한이 높아요!');
+            await member.ban();
+            return message.reply(`${member.user.tag}님을 서버에서 차단했습니다.`);
+        }
+    }
+
     if (message.content === '고강아 안녕') return message.reply('안녕! 난 고강이라고해. 기본적으로 xAI사용하고 있어. 여러 명령어를 사용하여 놀아봐!');
     if (message.content === '고강아 핑') return message.reply(`${client.ws.ping}ms`);
     if (message.content === '고강아 블랙리스트') {
@@ -86,7 +97,7 @@ client.on('messageCreate', async message => {
     if (message.content.startsWith('고강아 ')) {
         const query = message.content.replace('고강아 ', '').trim();
         db.get("SELECT a, teacher FROM knowledge WHERE q = ?", [query], (err, row) => {
-            message.reply(row ? `${row.a}\n(가르친 사람: ${row.teacher})` : '왓더 뻑🤯');
+            message.reply(row ? `${row.a}\n(가르친 사람: ${row.teacher})` : '모르는 내용이야!');
         });
     }
 });
@@ -101,7 +112,7 @@ client.once('ready', async () => {
         new SlashCommandBuilder().setName('웹훅보내기').setDescription('웹훅 전송')
     ].map(c => c.toJSON());
     await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('최종 통합 봇 가동 시작!');
+    console.log('봇 준비 완료!');
 });
 
 client.login(process.env.DISCORD_TOKEN);
