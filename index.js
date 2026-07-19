@@ -13,7 +13,6 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 client.on('interactionCreate', async interaction => {
-    // 1. 가르치기 (모달)
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -29,7 +28,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply(`학습 완료: "${q}" -> "${a}"`);
     }
 
-    // 2. 티켓패널
     if (interaction.commandName === '티켓패널') {
         const embed = new EmbedBuilder().setTitle('문의하기').setDescription('아래 버튼을 눌러 티켓을 생성하세요.');
         const btn = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('티켓 생성').setStyle(ButtonStyle.Primary));
@@ -40,7 +38,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `티켓이 생성되었습니다: ${ch}`, ephemeral: true });
     }
 
-    // 3. 경고
     if (interaction.commandName === '경고') {
         const member = interaction.options.getMember('유저');
         const reason = interaction.options.getString('사유');
@@ -48,20 +45,17 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply(`${member.user.tag}님에게 경고했습니다: ${reason}`);
     }
 
-    // 4. 핑
     if (interaction.commandName === '핑') {
         const embed = new EmbedBuilder().setTitle('서버 상태').addFields({ name: '응답 속도', value: `${client.ws.ping}ms` }).setColor(0x00FF00);
         return interaction.reply({ embeds: [embed] });
     }
 
-    // 5. 블랙리스트
     if (interaction.commandName === '블랙리스트') {
         const user = interaction.options.getUser('유저');
         db.run("INSERT INTO blacklist VALUES (?)", [user.id]);
         return interaction.reply(`${user.tag}님이 블랙리스트에 등록되었습니다.`);
     }
 
-    // 6. 웹훅보내기 (모달)
     if (interaction.commandName === '웹훅보내기') {
         const modal = new ModalBuilder().setCustomId('webhookModal').setTitle('웹훅 전송');
         modal.addComponents(
@@ -78,7 +72,6 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 채팅 응답 및 명령어
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     if (message.content === '고강아 핑') return message.reply(`${client.ws.ping}ms`);
@@ -98,11 +91,14 @@ client.on('messageCreate', async message => {
 
 client.once('ready', async () => {
     const commands = [
-        new SlashCommandBuilder().setName('가르치기').setDescription('학습'),
+        new SlashCommandBuilder().setName('가르치기').setDescription('질문을 학습합니다'),
         new SlashCommandBuilder().setName('티켓패널').setDescription('티켓 생성'),
-        new SlashCommandBuilder().setName('경고').setDescription('경고').addUserOption(o=>o.setName('유저').setRequired(true)).addStringOption(o=>o.setName('사유').setRequired(true)),
+        new SlashCommandBuilder().setName('경고').setDescription('경고')
+            .addUserOption(o=>o.setName('유저').setDescription('유저 선택').setRequired(true))
+            .addStringOption(o=>o.setName('사유').setDescription('사유 입력').setRequired(true)),
         new SlashCommandBuilder().setName('핑').setDescription('서버 핑 확인'),
-        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트 등록').addUserOption(o=>o.setName('유저').setRequired(true)),
+        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트 등록')
+            .addUserOption(o=>o.setName('유저').setDescription('유저 선택').setRequired(true)),
         new SlashCommandBuilder().setName('웹훅보내기').setDescription('웹훅 전송')
     ].map(c => c.toJSON());
     await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user.id), { body: commands });
