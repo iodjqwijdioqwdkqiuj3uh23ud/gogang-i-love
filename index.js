@@ -14,7 +14,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand() && !interaction.isModalSubmit() && !interaction.isButton()) return;
 
-    // 명령어 모음
+    // 1. 가르치기 관련
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -26,19 +26,11 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isModalSubmit() && interaction.customId === 'teachModal') {
         const q = interaction.fields.getTextInputValue('q');
         const a = interaction.fields.getTextInputValue('a');
-        db.get("SELECT a FROM knowledge WHERE q = ?", [q], (err, row) => {
-            if (row) return interaction.reply({ content: '이미 있음~ 병신아', ephemeral: true });
-            db.run("INSERT INTO knowledge (q, a, teacher) VALUES (?, ?, ?)", [q, a, interaction.user.username]);
-            db.get("SELECT logChannelId FROM settings WHERE guildId = ?", [interaction.guild.id], (err, setting) => {
-                if (setting) {
-                    const logChannel = interaction.guild.channels.cache.get(setting.logChannelId);
-                    if (logChannel) logChannel.send(`[학습 로그] ${interaction.user.tag}님이 가르침!\n질문: ${q}\n대답: ${a}`);
-                }
-            });
-            return interaction.reply(`학습 완료: "${q}" -> "${a}"`);
-        });
+        db.run("INSERT INTO knowledge (q, a, teacher) VALUES (?, ?, ?)", [q, a, interaction.user.username]);
+        return interaction.reply(`학습 완료: "${q}" -> "${a}"`);
     }
 
+    // 2. 관리 명령어들
     if (interaction.commandName === '가르치기로그') {
         db.run("INSERT OR REPLACE INTO settings (guildId, logChannelId) VALUES (?, ?)", [interaction.guild.id, interaction.options.getChannel('채널').id]);
         return interaction.reply('로그 채널 설정 완료!');
@@ -71,17 +63,19 @@ client.on('interactionCreate', async interaction => {
         new WebhookClient({ url: interaction.fields.getTextInputValue('url') }).send({ content: interaction.fields.getTextInputValue('msg') });
         return interaction.reply({ content: '전송완료', ephemeral: true });
     }
+
+    // 3. 역할 및 채널 관리
     if (interaction.commandName === '역할지급') {
         await interaction.options.getMember('유저').roles.add(interaction.options.getRole('역할'));
-        return interaction.reply('지급 완료.');
+        return interaction.reply('역할 지급 완료.');
     }
     if (interaction.commandName === '채널생성') {
         const ch = await interaction.guild.channels.create({ name: interaction.options.getString('채널명'), parent: interaction.options.getChannel('카테고리').id });
-        return interaction.reply(`${ch} 생성 완료.`);
+        return interaction.reply(`${ch} 채널 생성 완료.`);
     }
     if (interaction.commandName === '역할생성') {
         const r = await interaction.guild.roles.create({ name: interaction.options.getString('역할이름') });
-        return interaction.reply(`${r.name} 생성 완료.`);
+        return interaction.reply(`${r.name} 역할 생성 완료.`);
     }
 });
 
@@ -124,9 +118,9 @@ client.once('ready', async () => {
         new SlashCommandBuilder().setName('채널생성').setDescription('채널생성').addChannelOption(o=>o.setName('카테고리').setRequired(true)).addStringOption(o=>o.setName('채널명').setRequired(true)),
         new SlashCommandBuilder().setName('역할생성').setDescription('역할생성').addStringOption(o=>o.setName('역할이름').setRequired(true))
     ].map(c => c.toJSON());
+    
     await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user.id), { body: commands });
     console.log('최종 통합 완료!');
 });
 
-client.login(process.env.DISCORD_TOKEN);
 client.login(process.env.DISCORD_TOKEN);
