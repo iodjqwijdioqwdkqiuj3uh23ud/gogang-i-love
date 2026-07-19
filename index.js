@@ -6,11 +6,13 @@ db.serialize(() => {
     db.run("CREATE TABLE IF NOT EXISTS knowledge (q TEXT, a TEXT, teacher TEXT)");
     db.run("CREATE TABLE IF NOT EXISTS warnings (userId TEXT, reason TEXT)");
     db.run("CREATE TABLE IF NOT EXISTS blacklist (userId TEXT)");
+    db.run("CREATE TABLE IF NOT EXISTS settings (guildId TEXT PRIMARY KEY, logChannelId TEXT)");
 });
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
 
 client.on('interactionCreate', async interaction => {
+    // 1. 가르치기 명령어 (모달 및 중복 방지)
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -25,8 +27,23 @@ client.on('interactionCreate', async interaction => {
         db.get("SELECT a FROM knowledge WHERE q = ?", [q], (err, row) => {
             if (row) return interaction.reply({ content: '이미 내가 알고 있는 내용이야!', ephemeral: true });
             db.run("INSERT INTO knowledge (q, a, teacher) VALUES (?, ?, ?)", [q, a, interaction.user.username]);
-            return interaction.reply(`학습 완료! "${q}" -> "${a}" (가르친 사람: ${interaction.user.username})`);
+            
+            // 로그 전송
+            db.get("SELECT logChannelId FROM settings WHERE guildId = ?", [interaction.guild.id], (err, setting) => {
+                if (setting) {
+                    const logChannel = interaction.guild.channels.cache.get(setting.logChannelId);
+                    if (logChannel) logChannel.send(`[학습 로그] ${interaction.user.tag}님이 가르침!\n질문: ${q}\n대답: ${a}`);
+                }
+            });
+            return interaction.reply(`학습 완료: "${q}" -> "${a}" (가르친 사람: ${interaction.user.username})`);
         });
+    }
+
+    // 2. 관리 명령어 (로그 설정, 티켓, 경고, 핑, 블랙리스트, 웹훅)
+    if (interaction.commandName === '가르치기로그') {
+        const channel = interaction.options.getChannel('채널');
+        db.run("INSERT OR REPLACE INTO settings (guildId, logChannelId) VALUES (?, ?)", [interaction.guild.id, channel.id]);
+        return interaction.reply(`로그 채널이 ${channel}로 설정되었습니다.`);
     }
 
     if (interaction.commandName === '티켓패널') {
@@ -71,16 +88,17 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     
-    // 추방 및 차단 기능
-    const args = message.content.split(' ');
-    if (args[0] === '고강아' && message.mentions.members.first()) {
+    // 추방 및 차단 명령어 처리
+    if (message.content.startsWith('고강아 ')) {
+        const args = message.content.split(' ');
         const member = message.mentions.members.first();
-        if (args[2] === '추방') {
+        
+        if (member && args[2] === '추방') {
             if (!member.kickable) return message.reply('처벌유저가 저보다 권한이 높아요!');
             await member.kick();
             return message.reply(`${member.user.tag}님을 추방했습니다.`);
         }
-        if (args[2] === '차단') {
+        if (member && args[2] === '차단') {
             if (!member.bannable) return message.reply('처벌유저가 저보다 권한이 높아요!');
             await member.ban();
             return message.reply(`${member.user.tag}님을 서버에서 차단했습니다.`);
@@ -89,12 +107,14 @@ client.on('messageCreate', async message => {
 
     if (message.content === '고강아 안녕') return message.reply('안녕! 난 고강이라고해. 기본적으로 xAI사용하고 있어. 여러 명령어를 사용하여 놀아봐!');
     if (message.content === '고강아 핑') return message.reply(`${client.ws.ping}ms`);
+    
     if (message.content === '고강아 블랙리스트') {
         db.all("SELECT userId FROM blacklist", [], (err, rows) => {
             message.reply({ embeds: [new EmbedBuilder().setTitle('블랙리스트').setDescription(rows.map(r => `<@${r.userId}>`).join(', ') || '없음')] });
         });
     }
-    if (message.content.startsWith('고강아 ')) {
+
+    if (message.content.startsWith('고강아 ') && !message.content.includes(' 추방') && !message.content.includes(' 차단')) {
         const query = message.content.replace('고강아 ', '').trim();
         db.get("SELECT a, teacher FROM knowledge WHERE q = ?", [query], (err, row) => {
             message.reply(row ? `${row.a}\n(가르친 사람: ${row.teacher})` : '모르는 내용이야!');
@@ -105,14 +125,15 @@ client.on('messageCreate', async message => {
 client.once('ready', async () => {
     const commands = [
         new SlashCommandBuilder().setName('가르치기').setDescription('질문 학습'),
+        new SlashCommandBuilder().setName('가르치기로그').setDescription('로그 채널 설정').addChannelOption(o => o.setName('채널').setDescription('로그 채널').setRequired(true)),
         new SlashCommandBuilder().setName('티켓패널').setDescription('티켓 생성'),
-        new SlashCommandBuilder().setName('경고').setDescription('경고').addUserOption(o=>o.setName('유저').setDescription('유저선택').setRequired(true)).addStringOption(o=>o.setName('사유').setDescription('사유입력').setRequired(true)),
+        new SlashCommandBuilder().setName('경고').setDescription('경고').addUserOption(o=>o.setName('유저').setDescription('대상').setRequired(true)).addStringOption(o=>o.setName('사유').setDescription('사유').setRequired(true)),
         new SlashCommandBuilder().setName('핑').setDescription('서버 핑 확인'),
-        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트 등록').addUserOption(o=>o.setName('유저').setDescription('유저선택').setRequired(true)),
+        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트 등록').addUserOption(o=>o.setName('유저').setDescription('대상').setRequired(true)),
         new SlashCommandBuilder().setName('웹훅보내기').setDescription('웹훅 전송')
     ].map(c => c.toJSON());
     await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('봇 준비 완료!');
+    console.log('최종 통합 봇 가동 시작!');
 });
 
 client.login(process.env.DISCORD_TOKEN);
