@@ -12,12 +12,12 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 client.on('interactionCreate', async interaction => {
-
+   
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q').setLabel('질문').setStyle(TextInputStyle.Short)),
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('a').setLabel('대답').setStyle(TextInputStyle.Paragraph))
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q').setLabel('질문').setStyle(TextInputStyle.Short).setPlaceholder('질문을 입력하세요').setRequired(true)),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('a').setLabel('대답').setStyle(TextInputStyle.Paragraph).setPlaceholder('대답을 입력하세요').setRequired(true))
         );
         return interaction.showModal(modal);
     }
@@ -29,7 +29,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply(`학습 완료: "${q}" -> "${a}"`);
     }
 
-
+ 
     if (interaction.commandName === '티켓패널') {
         const embed = new EmbedBuilder().setTitle('문의하기').setDescription('아래 버튼을 눌러 티켓을 생성하세요.');
         const btn = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('티켓 생성').setStyle(ButtonStyle.Primary));
@@ -43,29 +43,26 @@ client.on('interactionCreate', async interaction => {
 
 
     if (interaction.commandName === '경고') {
-        if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers)) return interaction.reply('권한 없음');
+        if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers)) return interaction.reply({ content: '권한이 없습니다.', ephemeral: true });
         const member = interaction.options.getMember('유저');
         const reason = interaction.options.getString('사유');
         db.run("INSERT INTO warnings VALUES (?, ?)", [member.id, reason]);
-        return interaction.reply(`${member.user.tag}에게 경고함: ${reason}`);
+        return interaction.reply(`${member.user.tag}에게 경고를 주었습니다. 사유: ${reason}`);
     }
 });
 
-
 client.once('ready', async () => {
     const commands = [
-        new SlashCommandBuilder().setName('가르치기').setDescription('질문과 대답을 가르칩니다.'),
-        new SlashCommandBuilder().setName('티켓패널').setDescription('티켓 버튼을 생성합니다.'),
-        new SlashCommandBuilder().setName('경고').setDescription('유저에게 경고를 줍니다.')
-            .addUserOption(o => o.setName('유저').setRequired(true))
-            .addStringOption(o => o.setName('사유').setRequired(true))
+        new SlashCommandBuilder().setName('가르치기').setDescription('봇에게 질문과 대답을 학습시킵니다.'),
+        new SlashCommandBuilder().setName('티켓패널').setDescription('티켓 생성 버튼을 띄웁니다.'),
+        new SlashCommandBuilder().setName('경고').setDescription('유저에게 경고 기록을 남깁니다.')
+            .addUserOption(o => o.setName('유저').setDescription('경고할 유저를 선택하세요').setRequired(true))
+            .addStringOption(o => o.setName('사유').setDescription('경고 사유를 입력하세요').setRequired(true))
     ].map(c => c.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('관리 기능 포함 모든 설정 완료!');
+    console.log('관리 기능 설정 완료!');
 });
-
-client.login(process.env.DISCORD_TOKEN);
 
 client.login(process.env.DISCORD_TOKEN);
