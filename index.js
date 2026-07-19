@@ -14,7 +14,6 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand() && !interaction.isModalSubmit() && !interaction.isButton()) return;
 
-    // 1. 가르치기 관련
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -30,7 +29,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply(`학습 완료: "${q}" -> "${a}"`);
     }
 
-    // 2. 관리 명령어들
     if (interaction.commandName === '가르치기로그') {
         db.run("INSERT OR REPLACE INTO settings (guildId, logChannelId) VALUES (?, ?)", [interaction.guild.id, interaction.options.getChannel('채널').id]);
         return interaction.reply('로그 채널 설정 완료!');
@@ -63,8 +61,6 @@ client.on('interactionCreate', async interaction => {
         new WebhookClient({ url: interaction.fields.getTextInputValue('url') }).send({ content: interaction.fields.getTextInputValue('msg') });
         return interaction.reply({ content: '전송완료', ephemeral: true });
     }
-
-    // 3. 역할 및 채널 관리
     if (interaction.commandName === '역할지급') {
         await interaction.options.getMember('유저').roles.add(interaction.options.getRole('역할'));
         return interaction.reply('역할 지급 완료.');
@@ -81,23 +77,7 @@ client.on('interactionCreate', async interaction => {
 
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
-    const args = message.content.split(' ');
-    const member = message.mentions.members.first();
-
-    if (message.content.startsWith('고강아 ') && member) {
-        if (args[2] === '추방') {
-            if (!member.kickable) return message.reply('권한이 낮아요!');
-            await member.kick();
-            return message.reply('추방 완료.');
-        }
-        if (args[2] === '차단') {
-            if (!member.bannable) return message.reply('권한이 낮아요!');
-            await member.ban();
-            return message.reply('차단 완료.');
-        }
-    }
-    if (message.content === '고강아 안녕') return message.reply('안녕! 난 고강이라고해. 기본적으로 xAI사용하고 있어.');
-    if (message.content.startsWith('고강아 ') && !message.content.includes(' 추방') && !message.content.includes(' 차단')) {
+    if (message.content.startsWith('고강아 ')) {
         const query = message.content.replace('고강아 ', '').trim();
         db.get("SELECT a, teacher FROM knowledge WHERE q = ?", [query], (err, row) => {
             message.reply(row ? `${row.a}\n(가르친 사람: ${row.teacher})` : '왓더뻑🤯');
@@ -108,19 +88,18 @@ client.on('messageCreate', async message => {
 client.once('ready', async () => {
     const commands = [
         new SlashCommandBuilder().setName('가르치기').setDescription('질문 학습'),
-        new SlashCommandBuilder().setName('가르치기로그').setDescription('로그 설정').addChannelOption(o => o.setName('채널').setRequired(true)),
+        new SlashCommandBuilder().setName('가르치기로그').setDescription('로그 채널 설정').addChannelOption(o => o.setName('채널').setDescription('채널').setRequired(true)),
         new SlashCommandBuilder().setName('티켓패널').setDescription('티켓 생성'),
-        new SlashCommandBuilder().setName('경고').setDescription('경고').addUserOption(o => o.setName('유저').setRequired(true)).addStringOption(o => o.setName('사유').setRequired(true)),
+        new SlashCommandBuilder().setName('경고').setDescription('경고').addUserOption(o => o.setName('유저').setDescription('유저').setRequired(true)).addStringOption(o => o.setName('사유').setDescription('사유').setRequired(true)),
         new SlashCommandBuilder().setName('핑').setDescription('핑 확인'),
-        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트').addUserOption(o => o.setName('유저').setRequired(true)),
+        new SlashCommandBuilder().setName('블랙리스트').setDescription('블랙리스트').addUserOption(o => o.setName('유저').setDescription('유저').setRequired(true)),
         new SlashCommandBuilder().setName('웹훅보내기').setDescription('웹훅'),
-        new SlashCommandBuilder().setName('역할지급').setDescription('역할지급').addUserOption(o=>o.setName('유저').setRequired(true)).addRoleOption(o=>o.setName('역할').setRequired(true)),
-        new SlashCommandBuilder().setName('채널생성').setDescription('채널생성').addChannelOption(o=>o.setName('카테고리').setRequired(true)).addStringOption(o=>o.setName('채널명').setRequired(true)),
-        new SlashCommandBuilder().setName('역할생성').setDescription('역할생성').addStringOption(o=>o.setName('역할이름').setRequired(true))
+        new SlashCommandBuilder().setName('역할지급').setDescription('역할 지급').addUserOption(o=>o.setName('유저').setDescription('유저').setRequired(true)).addRoleOption(o=>o.setName('역할').setDescription('역할').setRequired(true)),
+        new SlashCommandBuilder().setName('채널생성').setDescription('채널 생성').addChannelOption(o=>o.setName('카테고리').setDescription('카테고리').setRequired(true)).addStringOption(o=>o.setName('채널명').setDescription('이름').setRequired(true)),
+        new SlashCommandBuilder().setName('역할생성').setDescription('역할 생성').addStringOption(o=>o.setName('역할이름').setDescription('이름').setRequired(true))
     ].map(c => c.toJSON());
-    
     await new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN).put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('최종 통합 완료!');
+    console.log('최종 통합 봇 가동 시작!');
 });
 
 client.login(process.env.DISCORD_TOKEN);
