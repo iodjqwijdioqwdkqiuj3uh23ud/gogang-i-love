@@ -12,7 +12,6 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 client.on('interactionCreate', async interaction => {
-   
     if (interaction.commandName === '가르치기') {
         const modal = new ModalBuilder().setCustomId('teachModal').setTitle('봇 가르치기');
         modal.addComponents(
@@ -29,7 +28,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply(`학습 완료: "${q}" -> "${a}"`);
     }
 
- 
     if (interaction.commandName === '티켓패널') {
         const embed = new EmbedBuilder().setTitle('문의하기').setDescription('아래 버튼을 눌러 티켓을 생성하세요.');
         const btn = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('티켓 생성').setStyle(ButtonStyle.Primary));
@@ -41,13 +39,27 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `티켓이 생성되었습니다: ${ch}`, ephemeral: true });
     }
 
-
     if (interaction.commandName === '경고') {
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers)) return interaction.reply({ content: '권한이 없습니다.', ephemeral: true });
         const member = interaction.options.getMember('유저');
         const reason = interaction.options.getString('사유');
         db.run("INSERT INTO warnings VALUES (?, ?)", [member.id, reason]);
         return interaction.reply(`${member.user.tag}에게 경고를 주었습니다. 사유: ${reason}`);
+    }
+});
+
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+
+    if (message.content.startsWith('고강아 ')) {
+        const query = message.content.replace('고강아 ', '').trim();
+        db.get("SELECT a FROM knowledge WHERE q = ?", [query], (err, row) => {
+            if (row) {
+                message.reply(row.a);
+            } else {
+                message.reply('아직 배우지 않은 내용이야!');
+            }
+        });
     }
 });
 
@@ -62,7 +74,7 @@ client.once('ready', async () => {
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('관리 기능 설정 완료!');
+    console.log('통합 관리 봇 준비 완료!');
 });
 
 client.login(process.env.DISCORD_TOKEN);
