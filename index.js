@@ -86,7 +86,7 @@ client.on('messageCreate', async message => {
     if (message.content.startsWith('고강아 ')) {
         const query = message.content.replace('고강아 ', '').trim();
         db.get("SELECT a, teacher FROM knowledge WHERE q = ?", [query], (err, row) => {
-            message.reply(row ? `${row.a}\n(가르친 사람: ${row.teacher})` : '모르는 내용이야!');
+            message.reply(row ? `${row.a}\n(가르친 사람: ${row.teacher})` : '왓더 뻑🤯');
         });
     }
 });
