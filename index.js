@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, PermissionsBitField, REST, Routes, SlashCommandBuilder } = require('discord.js');
-const { OpenAI } = require('AQ.Ab8RN6J9-M3Py7CJg7qgjPSfFB5vTHi-3tlPxteC6tPk7u454Q');
+const { OpenAI } = require('openai');
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers]
